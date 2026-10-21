@@ -1,0 +1,7 @@
+__pycache__/, 
+.venv/, 
+.pytest_cache/, 
+data/raw/*.csv, 
+*.pyc, 
+.env, 
+.databricks/
