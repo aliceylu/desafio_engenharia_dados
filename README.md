@@ -148,7 +148,7 @@ O processamento respeita a ordem de dependências: **clientes → contas → car
 
 Para consolidar as tabelas Prata, utilizo `MERGE` Delta com o snapshot completo de cada entidade, incluindo `WHEN NOT MATCHED BY SOURCE DELETE`. Assim, se um registro deixar de existir na versão vigente de um arquivo, ele também poderá deixar de existir na Prata. Essa exclusão **não** é aplicada à Bronze.
 
-A quarentena também é recomposta a partir dos dados vigentes. Portanto, ela representa as rejeições da situação atualmente processada, e não um histórico imutável de todos os erros de todas as versões dos arquivos.
+A quarentena também é recomposta a partir dos dados vigentes. Portanto, ela representa as rejeições da situação atualmente processada, e não um histórico imutável de todos os erros de todas as versões dos arquivos. A lógica foi centralizada em uma tabela de quarentena, para simplificar manutenção, auditoria e criação dos alertas, tendo a coluna `entidade` para identificar a origem do dado.
 
 
 ### 3.4 Regra cronológica dos estornos
@@ -222,8 +222,16 @@ GROUP BY arquivo_origem, id_ingestao, arquivo_checksum
 ORDER BY arquivo_origem, ultima_ingestao;
 ```
 
-## 6. Evidências e versionamento
+## 6. Estratégia de particionamento
+Durante o desenvolvimento, optei por não utilizar o partitionBy nas tabelas Delta. A massa sintética é pequena, e uma divisão por data, mês ou entidade criaria partições e arquivos pequenos. Isso acrescentaria complexidade sem benefício relevante de leitura. Para um volume maior, avaliaria os filtros mais usados emediria o custo das consultas antes de adotar organização física adicional, como o liquid clustering. Essa opção é consistente com a documentação da Databricks de evitar particionamento manual em tabelas pequenas.
+
+## 7. Estratégia de schema evolution
+Na camada Bronze, foi utilizado um schema explícito de campos de negócio como string para preservar os dados de origem. na escrita de novas versões, `.option("mergeSchema", "true")` permite adicionar colunas ao schema Delta da bronze, desde que elas estejam presentes no dataframe de entrada. Portanto, mudanças no cabeçalho do CSV não são automaticamente incorporadas, é necessário revisão e atualização de colunas e do schema de leitura.
+A camada Prata não habilita evolução automática indiscriminada. As regras de tipagem e qualidade devem ser adaptadas antes de aceitar o novo esquema. Na camada Ouro, o processamento por snapshot usa `overwriteSchema`, compatível com reconstruções intencionais das tabelas analíticas, mediante validação prévia.
+
+## 8. Evidências e versionamento
 
 As evidências de execução foram mantidas em `docs/evidencias/`, com os HTMLs exportados dos cinco notebooks.
 
 Utilizo a branch `dev` para desenvolvimento, testes e documentação, e a branch `main` para a versão revisada destinada à entrega.
+
