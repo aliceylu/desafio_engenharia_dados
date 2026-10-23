@@ -39,9 +39,25 @@ def criar_quarentena(df, entidade: str):
     )
 
 
-def _registrar_resultado(logger, nome: str, df_bronze, df_valido, rejeitados: int):
-    lidos, gravados = df_bronze.count(), df_valido.count()
-    log_metricas(logger, f"prata_{nome}", lidos=lidos, gravados=gravados, rejeitados=rejeitados, descartados_por_versao=max(0, lidos - gravados - rejeitados))
+def _registrar_resultado(
+    logger, nome: str, df_bronze,
+    df_valido, rejeitados: int
+):
+    lidos = df_bronze.count()
+    gravados = df_valido.count()
+
+    descartados_deduplicacao = max(
+        0, lidos - gravados - rejeitados
+    )
+
+    log_metricas(
+        logger,
+        f"prata_{nome}",
+        lidos=lidos,
+        gravados=gravados,
+        rejeitados=rejeitados,
+        descartados_por_deduplicacao=descartados_deduplicacao
+    )
 
 
 def tratar_clientes(raw):
