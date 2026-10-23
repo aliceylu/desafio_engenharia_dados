@@ -10,7 +10,8 @@ Gera 5 tipos de arquivo CSV com problemas de qualidade INTENCIONAIS:
 
 Uso:
     python gerar_massa.py                       # grava em ./data/raw
-    python gerar_massa.py --saida /Volumes/catalogo/schema/raw --inicio 2025-03-01 --dias 3
+    python gerar_massa.py --saida /Volumes/novarota/bronze/raw --inicio 2025-03-01 --dias 3
+    
 
 Dados 100% fictícios (seed fixa => resultado reproduzível).
 """

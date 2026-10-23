@@ -47,7 +47,6 @@ class Config:
         return f"transacoes_cartao_{self.data_referencia:%Y%m%d}.csv"
 
     def caminho_transacoes(self) -> str:
-        # Os arquivos YYYYMMDD.csv estão na raiz do volume, não em subpastas.
         return self.caminho_raw(self.arquivo_transacoes())
 
 
@@ -57,7 +56,7 @@ def _ler_parametro(nome: str, default: str | None = None, dbutils=None) -> str |
             valor = dbutils.widgets.get(nome)
             if valor:
                 return valor
-        except Exception:  # Widget inexistente: variáveis de ambiente/defaults
+        except Exception: 
             pass
     return os.getenv(nome.upper()) or default
 
