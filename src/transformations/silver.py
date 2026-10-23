@@ -5,6 +5,7 @@ from functools import reduce
 
 from pyspark.sql import functions as F
 
+from src.utils.versoes import selecionar_versoes_vigentes
 from src.quality.rules import aplicar_regras, cpf_valido, deduplicar, sem_referencia, texto_vazio
 from src.utils.delta import sincronizar_snapshot, substituir_snapshot
 from src.utils.logging import log_etapa, log_metricas
@@ -137,7 +138,9 @@ def executar_prata(spark, cfg, logger):
     quarentenas = []
     for nome in ("clientes", "contas", "cartoes", "transacoes", "estornos"):
         with log_etapa(logger, f"prata_{nome}"):
-            raw = spark.table(cfg.tabela("bronze", nome))
+            raw = selecionar_versoes_vigentes(
+                spark.table(cfg.tabela("bronze", nome))
+            ).drop("id_ingestao")
             if nome == "clientes":
                 bons, ruins = tratar_clientes(raw)
             elif nome == "contas":

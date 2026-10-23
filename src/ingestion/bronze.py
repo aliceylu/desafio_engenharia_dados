@@ -8,6 +8,7 @@ from pyspark.sql.types import StringType, StructField, StructType
 
 from src.utils.delta import existe_tabela
 from src.utils.logging import log_etapa, log_metricas
+from uuid import uuid4
 
 COLUNAS = {
     "clientes": ("id_cliente", "nome", "cpf", "data_nascimento", "cidade", "estado", "data_atualizacao"),
@@ -19,7 +20,6 @@ COLUNAS = {
 
 
 def checksum_arquivo(caminho: str) -> str:
-    """Hash físico; streaming no driver é suficiente para os CSVs pequenos do case."""
     digest = hashlib.sha256()
     with open(caminho, "rb") as arquivo:
         for bloco in iter(lambda: arquivo.read(1024 * 1024), b""):
@@ -39,26 +39,41 @@ def ingerir_arquivo(spark, cfg, logger, entidade: str, nome_arquivo: str) -> Non
     tabela = cfg.tabela("bronze", entidade)
     caminho = cfg.caminho_raw(nome_arquivo)
     with log_etapa(logger, f"bronze_{entidade}_{nome_arquivo}"):
-        checksum = checksum_arquivo(caminho)
-        if existe_tabela(spark, tabela):
-            anterior = (spark.table(tabela).where(F.col("arquivo_origem") == nome_arquivo)
-                        .select("arquivo_checksum").limit(1).collect())
-            if anterior and anterior[0]["arquivo_checksum"] == checksum:
-                logger.info("ARQUIVO_SEM_ALTERACAO arquivo=%s tabela=%s", nome_arquivo, tabela)
-                return
+        checksum = checksum_arquivo(caminho)        
+    if existe_tabela(spark, tabela):
+        anterior = (
+            spark.table(tabela)
+            .where(F.col("arquivo_origem") == nome_arquivo)
+            .orderBy(
+                F.col("timestamp_ingestao").desc_nulls_last()
+            )
+            .select("arquivo_checksum")
+            .first()
+        )
+        if anterior and anterior["arquivo_checksum"] == checksum:
+            logger.info(
+                "ARQUIVO_SEM_ALTERACAO arquivo=%s tabela=%s",
+                nome_arquivo,
+                tabela
+            )
+            return
+
         base = ler_csv_raw(spark, caminho, COLUNAS[entidade])
+        id_ingestao = uuid4().hex
         dados = (base
                  .withColumn("arquivo_origem", F.lit(nome_arquivo))
+                 .withColumn("arquivo_checksum", F.lit(checksum))
+                 .withColumn("id_ingestao", F.lit(id_ingestao))
                  .withColumn("data_referencia", F.lit(cfg.data_referencia.isoformat()).cast("date"))
                  .withColumn("timestamp_ingestao", F.current_timestamp())
                  .withColumn("hash_linha", F.sha2(F.to_json(F.struct(
                      *[F.col(c) for c in COLUNAS[entidade]]), {"ignoreNullFields": "false"}), 256))
-                 .withColumn("arquivo_checksum", F.lit(checksum)))
+                 )
+        
         qtd = dados.count()
         if existe_tabela(spark, tabela):
-            # Escrita atômica por arquivo, mantém duplicatas internas ao CSV.
-            (dados.write.format("delta").mode("overwrite")
-             .option("replaceWhere", f"arquivo_origem = '{nome_arquivo}'")
+            (dados.write.format("delta").mode("append")
+             .option("mergeSchema", "true")
              .saveAsTable(tabela))
         else:
             dados.write.format("delta").mode("overwrite").saveAsTable(tabela)

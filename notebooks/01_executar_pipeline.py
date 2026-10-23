@@ -27,6 +27,12 @@ print(f"Repositório encontrado: {repo}")
 
 # COMMAND ----------
 
+arquivos = dbutils.fs.ls("/Volumes/novarota/bronze/raw/")
+
+display(arquivos)
+
+# COMMAND ----------
+
 from main import run
 
 run(spark, data_referencia="2025-03-01")
@@ -47,7 +53,6 @@ run(spark, data_referencia="2025-03-03")
 
 # COMMAND ----------
 
-# Valide as tabelas após execução.
 display(spark.table("novarota.ouro.gold_resumo_cliente_mes"))
 
 # COMMAND ----------
@@ -120,5 +125,15 @@ run(spark, data_referencia="2025-03-03")
 
 # COMMAND ----------
 
-# MAGIC %md
-# MAGIC
+# MAGIC %sql
+# MAGIC SELECT
+# MAGIC     arquivo_origem,
+# MAGIC     COUNT(*) AS quantidade_registros
+# MAGIC FROM novarota.bronze.transacoes
+# MAGIC GROUP BY arquivo_origem
+# MAGIC ORDER BY arquivo_origem;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC DESCRIBE TABLE novarota.bronze.transacoes;
